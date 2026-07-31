@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tank Wars - 5v5 Attack & Defend</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+body{background:#0a0a1a;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Segoe UI','Roboto',Arial,sans-serif;overflow:hidden;color:#eee}
+#wrap{position:relative;width:900px;height:600px;background:#111;border-radius:12px;overflow:hidden;box-shadow:0 0 60px rgba(245,166,35,.15),0 0 120px rgba(0,0,0,.8);border:1px solid #2a2a3e}
+
+/* HUD */
+#hud{position:absolute;top:0;left:0;right:0;height:48px;background:linear-gradient(180deg,#1a1a2e 0%,#111122 100%);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:10;border-bottom:2px solid #2a2a3e;backdrop-filter:blur(10px)}
+.hud-team{display:flex;align-items:center;gap:4px;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:1px}
+.hud-team.atk{color:#ff4757}
+.hud-team.def{color:#3742fa}
+.hud-team .icon{width:18px;height:18px;border-radius:3px;display:inline-block;margin-right:2px}
+#atk-icons .icon,#def-icons .icon{width:14px;height:14px;border-radius:50%;display:inline-block;margin:0 1px;transition:all .3s}
+#atk-icons .icon.alive{box-shadow:0 0 6px rgba(255,71,87,.6)}
+#atk-icons .icon.dead{opacity:.25;background:#555!important}
+#def-icons .icon.alive{box-shadow:0 0 6px rgba(55,66,250,.6)}
+#def-icons .icon.dead{opacity:.25;background:#555!important}
+#round-label{font-size:11px;color:#666;text-align:center;letter-spacing:1px}
+#timer-box{font-size:26px;font-weight:900;color:#ffd32a;text-align:center;letter-spacing:2px;text-shadow:0 0 12px rgba(255,211,42,.4);font-variant-numeric:tabular-nums}
+#timer-box.urgent{color:#ff4757;text-shadow:0 0 12px rgba(255,71,87,.6);animation:pulse 0.5s infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+#hud-pts{font-size:12px;color:#888;text-align:center}
+
+/* Canvas */
+canvas#c{position:absolute;top:48px;left:0;width:900px;height:452px;background:#2d5a1b;border:none;cursor:crosshair;image-rendering:pixelated}
+
+/* Mobile Controls */
+#controls{position:absolute;bottom:0;left:0;right:0;height:90px;background:linear-gradient(0deg,rgba(0,0,0,.8) 0%,transparent 100%);display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:10;pointer-events:none}
+#dpad,#controls-right{display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:auto}
+.dpad-btn{width:42px;height:42px;border-radius:10px;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;backdrop-filter:blur(4px)}
+.dpad-btn:hover,.dpad-btn:active{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.4);transform:scale(1.1)}
+#dpad-row{display:flex;gap:4px}
+#controls-right{flex-direction:row;gap:6px}
+#controls-right button{padding:8px 12px;border-radius:8px;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;backdrop-filter:blur(4px);letter-spacing:0.5px}
+#controls-right button:hover,#controls-right button:active{background:rgba(255,255,255,.2);transform:scale(1.05)}
+#btn-fire{background:rgba(255,71,87,.2);border-color:rgba(255,71,87,.5)}
+#btn-fire:active{background:rgba(255,71,87,.5)}
+#btn-boost{background:rgba(0,184,148,.2);border-color:rgba(0,184,148,.5)}
+#btn-boost:active{background:rgba(0,184,148,.5)}
+#btn-rec{background:rgba(116,185,255,.2);border-color:rgba(116,185,255,.5)}
+#btn-rec:active{background:rgba(116,185,255,.5)}
+#fire-name{font-size:9px;color:#aaa;font-weight:400;display:block;margin-top:2px}
+
+/* Overlays */
+.ov{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;backdrop-filter:blur(8px)}
+.ov h1{font-size:48px;font-weight:900;letter-spacing:6px;color:#fff;text-shadow:0 0 30px rgba(245,166,35,.6),0 0 60px rgba(245,166,35,.3);margin-bottom:4px;background:linear-gradient(135deg,#fff,#ffd32a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.ov h2{font-size:13px;color:#666;letter-spacing:4px;margin-bottom:24px;text-transform:uppercase}
+.big-btn{padding:14px 40px;border-radius:10px;border:2px solid #f5a623;background:linear-gradient(135deg,#f5a623,#e67e22);color:#fff;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:2px;transition:all .25s;margin:6px;text-transform:uppercase;box-shadow:0 4px 20px rgba(245,166,35,.3)}
+.big-btn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 8px 30px rgba(245,166,35,.5)}
+.big-btn:active{transform:translateY(0) scale(0.98)}
+.big-btn.sec{background:linear-gradient(135deg,#333,#222);border-color:#555;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.big-btn.sec:hover{box-shadow:0 8px 30px rgba(255,255,255,.1)}
+
+/* Countdown */
+#countdown{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:80px;font-weight:900;color:#fff;text-shadow:0 0 40px rgba(255,255,255,.6);z-index:15;pointer-events:none;opacity:0;transition:opacity .3s}
+#countdown.show{opacity:1}
+
+/* Phase text */
+.phase{font-size:24px;font-weight:700;color:#ffd32a;margin:8px 0;letter-spacing:3px}
+
+/* Weapon grid */
+.weapon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;max-width:520px}
+.weapon-card{background:#1a1a2e;border:2px solid #2a2a3e;border-radius:10px;padding:10px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.weapon-card::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.05),transparent);transition:left .4s}
+.weapon-card:hover::before{left:100%}
+.weapon-card:hover{border-color:#f5a623;transform:translateY(-3px);box-shadow:0 8px 24px rgba(245,166,35,.2)}
+.weapon-card.selected{border-color:#ffd32a;background:#2a2a4e;box-shadow:0 0 16px rgba(255,211,42,.3)}
+.weapon-card .w-icon{font-size:30px;margin-bottom:4px}
+.weapon-card .w-name{font-size:11px;font-weight:700;margin:4px 0;color:#ddd}
+.weapon-card .w-stats{font-size:9px;color:#888;line-height:1.4}
+.weapon-card .w-cost{font-size:10px;color:#ffd32a;margin-top:6px;font-weight:700}
+.weapon-card .w-dmg{font-size:10px;color:#ff4757;margin-top:2px}
+
+/* Result */
+.res-banner{font-size:32px;font-weight:900;padding:10px 28px;border-radius:10px;margin:10px 0;letter-spacing:2px}
+.res-banner.win{background:rgba(0,184,148,.15);color:#00b894;border:2px solid #00b894;box-shadow:0 0 20px rgba(0,184,148,.3)}
+.res-banner.lose{background:rgba(255,71,87,.15);color:#ff4757;border:2px solid #ff4757;box-shadow:0 0 20px rgba(255,71,87,.3)}
+.res-banner.draw{background:rgba(178,190,195,.15);color:#b2bec3;border:2px solid #b2bec3}
+.srow{font-size:14px;color:#888;margin:4px 0}
+.srow span{color:#fff;font-weight:700}
+.pts-display{font-size:14px;color:#888;margin:6px 0}
+.pts-display span{color:#fff;font-weight:700}
+.recs{display:flex;gap:6px;margin:12px 0;flex-wrap:wrap;justify-content:center}
+.rec{background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:5px 10px;font-size:10px;color:#aaa;transition:all .2s}
+.rec.highlight{background:#ffd32a;color:#000;font-weight:700;border-color:#ffd32a;box-shadow:0 0 10px rgba(255,211,42,.4)}
+
+/* Kill feed */
+#kill-feed{position:absolute;top:52px;right:8px;z-index:11;pointer-events:none;display:flex;flex-direction:column;gap:3px}
+.kill-entry{background:rgba(0,0,0,.7);padding:3px 8px;border-radius:4px;font-size:10px;color:#ddd;animation:fadeSlide 0.3s ease;white-space:nowrap}
+.kill-entry .killer{color:#ffd32a;font-weight:700}
+.kill-entry .victim{color:#ff4757;font-weight:700}
+.kill-entry .weapon-used{color:#00b894}
+@keyframes fadeSlide{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* Damage numbers */
+.dmg-num{position:absolute;font-weight:900;font-size:16px;pointer-events:none;z-index:16;animation:dmgFloat .8s ease forwards}
+.dmg-num.player-dmg{color:#ffd32a}
+.dmg-num.enemy-dmg{color:#ff4757}
+@keyframes dmgFloat{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-40px) scale(0.6)}}
+
+/* Boost bar */
+#boost-bar{position:absolute;bottom:94px;left:50%;transform:translateX(-50%);width:120px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;z-index:11;overflow:hidden}
+#boost-fill{height:100%;width:100%;background:linear-gradient(90deg,#00b894,#00cec9);border-radius:3px;transition:width .1s}
+
+/* Minimap */
+#minimap{position:absolute;top:52px;left:8px;width:100px;height:50px;border:1px solid #333;border-radius:4px;z-index:11;opacity:.8}
+
+/* Power-up notification */
+#powerup-notif{position:absolute;top:100px;left:50%;transform:translateX(-50%);z-index:16;font-size:14px;font-weight:700;color:#ffd32a;text-shadow:0 0 10px rgba(255,211,42,.5);opacity:0;transition:opacity .3s;pointer-events:none;text-align:center}
+
+/* Combo indicator */
+#combo{position:absolute;top:100px;left:16px;z-index:16;font-size:18px;font-weight:900;color:#ff4757;text-shadow:0 0 10px rgba(255,71,87,.5);opacity:0;transition:opacity .3s;pointer-events:none}
+#combo.show{opacity:1}
+
+/* Responsive */
+@media(max-width:920px){
+  #wrap{width:100vw;height:100vh;border-radius:0}
+  canvas#c{width:100vw;height:calc(100vh - 48px)}
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="hud-team atk"><div id="atk-icons"></div> ATK</div>
+    <div>
+      <div id="round-label">RND <span id="hud-round">1</span> &nbsp;<span id="hud-score-wins" style="color:#f5a623;font-size:9px">0:0</span></div>
+      <div id="timer-box">90</div>
+      <div id="hud-pts">⭐ <span id="hud-stars-val">0</span> &nbsp; <span style="color:#555">●</span> <span id="hud-pts-val">0</span>pts</div>
+    </div>
+    <div class="hud-team def">DEF <div id="def-icons"></div></div>
+  </div>
+
+  <canvas id="c"></canvas>
+  <div id="countdown"></div>
+
+  <div id="controls">
+    <div id="dpad">
+      <button class="dpad-btn" id="btn-up">▲</button>
+      <div id="dpad-row">
+        <button class="dpad-btn" id="btn-left">◀</button>
+        <button class="dpad-btn" id="btn-down">▼</button>
+        <button class="dpad-btn" id="btn-right">▶</button>
+      </div>
+    </div>
+    <div id="controls-right">
+      <button id="btn-fire">FIRE<div id="fire-name"></div></button>
+      <button id="btn-boost">⚡ BOOST</button>
+      <button id="btn-rec">REC</button>
+    </div>
+  </div>
+
+  <!-- Kill feed -->
+  <div id="kill-feed"></div>
+
+  <!-- Boost bar -->
+  <div id="boost-bar"><div id="boost-fill"></div></div>
+
+  <!-- Power-up notification -->
+  <div id="powerup-notif"></div>
+
+  <!-- Combo indicator -->
+  <div id="combo"></div>
+
+  <!-- START -->
+  <div class="ov" id="ov-start">
+    <h1>TANK WARS</h1>
+    <h2>5 VS 5 · ATTACK & DEFEND</h2>
+    <div class="recs" id="start-recs"></div>
+    <button class="big-btn" id="btn-start">▶ НАЧАТЬ МАТЧ</button>
+  </div>
+
+  <!-- ROUND INTRO -->
+  <div class="ov" id="ov-round" style="display:none">
+    <div style="font-size:11px;color:#444;letter-spacing:2px">РАУНД <span id="rnd-num">1</span> / 2</div>
+    <div class="phase" id="rnd-role">⚔ ТЫ АТАКУЕШЬ</div>
+    <div style="font-size:10px;color:#555;text-align:center;line-height:1.7;margin:6px 0" id="rnd-desc"></div>
+    <button class="big-btn" id="btn-round-go">► ВЫБРАТЬ ПОЗИЦИЮ</button>
+  </div>
+
+  <!-- WEAPON SELECT -->
+  <div class="ov" id="ov-weapon" style="display:none">
+    <div style="font-size:10px;color:#444;letter-spacing:2px;margin-bottom:2px">ВЫБЕРИ ОРУЖИЕ</div>
+    <div class="pts-display">● <span id="wp-pts">0</span> pts &nbsp; ⭐ <span id="wp-stars">0</span></div>
+    <div class="weapon-grid" id="weapon-grid"></div>
+    <button class="big-btn" id="btn-weapon-confirm" style="opacity:.4;pointer-events:none">В БОЙ ▶</button>
+  </div>
+
+  <!-- ROUND END -->
+  <div class="ov" id="ov-rend" style="display:none">
+    <div class="res-banner" id="re-banner">ПОБЕДА!</div>
+    <div class="srow">Убийств: <span id="re-kills">0</span></div>
+    <div class="srow">Потери: <span id="re-losses">0</span></div>
+    <div class="srow">+Очков: <span id="re-pts">0</span></div>
+    <button class="big-btn" id="btn-next-rnd">РАУНД 2 ▶</button>
+  </div>
+
+  <!-- MATCH END -->
+  <div class="ov" id="ov-end" style="display:none">
+    <h1>МАТЧ</h1>
+    <div class="res-banner" id="end-banner">ЗАВЕРШЁН</div>
+    <div class="srow">Счёт: <span id="end-score">0</span></div>
+    <div class="recs" id="end-recs"></div>
+    <button class="big-btn" id="btn-rematch">↺ РЕВАНШ</button>
+    <button class="big-btn sec" id="btn-menu">МЕНЮ</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
